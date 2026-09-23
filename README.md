@@ -1,7 +1,7 @@
 # 天气预报 QWeather Widget
 <p>
   <img alt="Version" src="https://img.shields.io/badge/version-2.2.5-blue">
-  <img alt="fnOS" src="https://img.shields.io/badge/fnOS-x86-success">
+  <img alt="fnOS" src="https://img.shields.io/badge/fnOS-x86%20%7C%20arm-success">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-orange">
   <img alt="Data" src="https://img.shields.io/badge/data-Open--Meteo-green">
 </p>
@@ -10,7 +10,7 @@
 
 - 当前版本：**v2.2.5**
 - 作者：**Misite齊**
-- 适用平台：fnOS **x86**（最低系统版本 1.0.0）
+- 适用平台：fnOS **x86 + arm**（最低系统版本 1.0.0）
 - 服务端口：**5698**
 - 运行身份：**root**（需操作 nginx 配置与系统恢复包）
 
@@ -70,7 +70,14 @@ https://github.com/MisiteQ/FnDepot
 
 ## 🛠 从源码打包
 
-需要 Python 3。
+需要 Python 3。打包产物架构由 `fpk/manifest` 中的 `platform` 字段决定（`x86` 或 `arm`）。
+
+### 打包指定架构
+
+```bash
+# 修改 fpk/manifest 的 platform 字段为目标架构，然后：
+python3 build_fp.py
+```
 
 ### Windows（PowerShell）
 
@@ -83,6 +90,8 @@ https://github.com/MisiteQ/FnDepot
 ```bash
 bash build.sh
 ```
+
+> 双架构发布：分别将 `platform` 设为 `x86` 和 `arm` 各打包一次，产物为 `com.qweather.widget-2.2.5-x86.fpk` 和 `com.qweather.widget-2.2.5-arm.fpk`。
 
 或直接运行：
 

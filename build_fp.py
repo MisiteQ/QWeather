@@ -2,7 +2,8 @@
 """
 打包 com.qweather.widget fpk（与服务端解包器兼容的格式）
 用法: python build_fp.py
-产物: com.qweather.widget-<version>-x86.fpk
+产物: com.qweather.widget-<version>-<platform>.fpk
+  platform 取自 fpk/manifest 的 platform 字段（x86 / arm）
 """
 import io
 import os
@@ -102,14 +103,16 @@ def main():
     app_tgz = build_app_tgz()
     checksum = hashlib.md5(app_tgz).hexdigest()
     fields = parse_source_manifest(os.path.join(SRC, 'manifest'))
-    version = dict(fields)['version']
+    fields_dict = dict(fields)
+    version = fields_dict['version']
+    platform = fields_dict.get('platform', 'x86')
     manifest = build_manifest(fields, checksum)
 
     def read(rel):
         with open(os.path.join(SRC, rel), 'rb') as f:
             return f.read()
 
-    out_path = os.path.join(ROOT, f'com.qweather.widget-{version}-x86.fpk')
+    out_path = os.path.join(ROOT, f'com.qweather.widget-{version}-{platform}.fpk')
     with tarfile.open(out_path, 'w:gz', compresslevel=6) as tar:
         add_regular(tar, 'app.tgz', app_tgz)
         for name in sorted(os.listdir(os.path.join(SRC, 'cmd'))):
