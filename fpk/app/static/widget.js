@@ -352,15 +352,15 @@
                 '  </div>' +
                 '  <div class="qw-weather-desc" id="qw-weather-desc">加载中...</div>' +
                 '</div>' +
+                '<div class="qw-forecast">' +
+                '  <div class="qw-forecast-title">未来预报</div>' +
+                '  <div class="qw-forecast-list" id="qw-forecast-list"></div>' +
+                '</div>' +
                 '<div class="qw-details">' +
                 '  <div class="qw-detail-item"><span class="qw-detail-label">体感</span><span class="qw-detail-value" id="qw-feels-like">--°</span></div>' +
                 '  <div class="qw-detail-item"><span class="qw-detail-label">湿度</span><span class="qw-detail-value" id="qw-humidity">--%</span></div>' +
                 '  <div class="qw-detail-item"><span class="qw-detail-label">风速</span><span class="qw-detail-value" id="qw-wind-speed">-- km/h</span></div>' +
                 '  <div class="qw-detail-item"><span class="qw-detail-label">气压</span><span class="qw-detail-value" id="qw-pressure">-- hPa</span></div>' +
-                '</div>' +
-                '<div class="qw-forecast">' +
-                '  <div class="qw-forecast-title">未来预报</div>' +
-                '  <div class="qw-forecast-list" id="qw-forecast-list"></div>' +
                 '</div>' +
                 '<div class="qw-update-time" id="qw-update-time">--</div>' +
                 '<div class="qw-resize-handle" id="qw-resize-handle" title="拖动调整大小"></div>';

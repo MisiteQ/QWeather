@@ -1,5 +1,5 @@
 appname=com.qweather.widget
-version=2.2.4
+version=2.2.5
 display_name=天气预报
 desc=桌面天气预报小部件，支持城市切换、透明度调节、自由拖动、调整大小。可注入飞牛桌面直接显示（无窗口标题栏）。登录界面自动隐藏。v2.1.0 起小组件不再遮挡飞牛桌面图标与任何原生控件。开发者：Misite齊。数据来源 Open-Meteo，无需 API Key。
 platform=x86
