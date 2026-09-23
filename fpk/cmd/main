@@ -1,0 +1,178 @@
+#!/bin/bash
+# 天气预报小部件 - 启停管理脚本
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+APP_DIR="${TRIM_APPDEST:-$(dirname -- "${SCRIPT_DIR}")}"
+PKGVAR_DIR="${TRIM_PKGVAR:-${APP_DIR}/var}"
+TEMP_LOG_FILE="${TRIM_TEMP_LOGFILE:-/tmp/com.qweather.widget.log}"
+PID_FILE="${PKGVAR_DIR}/app.pid"
+LOG_FILE="${PKGVAR_DIR}/app.log"
+LIBS_DIR="${APP_DIR}/libs"
+# 纯 unix socket 应用（参照 fn-fancontrol）：
+# socket 放在 target 目录（/var/apps/<app>/target -> @appcenter/<app>）下，
+# trim_sac 扫描各应用 target 目录的 *.sock，填充 gateway_socket 并向
+# trim_http_cgi 注册网关转发 /app/com.qweather.widget/*
+SOCKET_FILE="${APP_DIR}/app.sock"
+SERVICE_PORT="${TRIM_SERVICE_PORT:-5698}"
+
+# 确保依赖已安装（libs 目录存在且包含 gunicorn）
+ensure_deps() {
+    # 检查 gunicorn 是否可用（通过 PYTHONPATH）
+    if PYTHONPATH="${LIBS_DIR}" python3 -c "import gunicorn" 2>/dev/null; then
+        return 0
+    fi
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 依赖未就绪，正在安装..." >> "${LOG_FILE}"
+
+    # 确保 libs 目录存在
+    mkdir -p "${LIBS_DIR}"
+
+    # 检查 pip 是否可用
+    if ! python3 -m pip --version > /dev/null 2>&1; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] pip 不可用，尝试安装..." >> "${LOG_FILE}"
+        curl -sS https://bootstrap.pypa.io/get-pip.py | python3 - --user >> "${LOG_FILE}" 2>&1
+        if [ $? -ne 0 ]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: pip 安装失败，请检查网络" >> "${LOG_FILE}"
+            return 1
+        fi
+    fi
+
+    # 安装依赖到 libs 目录
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 正在安装 Flask、requests、gunicorn..." >> "${LOG_FILE}"
+    python3 -m pip install \
+        --target "${LIBS_DIR}" \
+        --no-cache-dir \
+        --upgrade \
+        -r "${APP_DIR}/requirements.txt" >> "${LOG_FILE}" 2>&1
+
+    # 默认源失败时用清华镜像重试一次
+    if [ $? -ne 0 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] 默认源失败，尝试清华镜像..." >> "${LOG_FILE}"
+        python3 -m pip install \
+            --target "${LIBS_DIR}" \
+            --no-cache-dir \
+            --upgrade \
+            -i https://pypi.tuna.tsinghua.edu.cn/simple \
+            -r "${APP_DIR}/requirements.txt" >> "${LOG_FILE}" 2>&1
+    fi
+
+    if [ $? -ne 0 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: 依赖安装失败，请检查网络连接" >> "${LOG_FILE}"
+        return 1
+    fi
+
+    # 验证安装
+    if ! PYTHONPATH="${LIBS_DIR}" python3 -c "import gunicorn, flask, requests" 2>/dev/null; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: 依赖验证失败" >> "${LOG_FILE}"
+        return 1
+    fi
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 依赖安装完成" >> "${LOG_FILE}"
+    return 0
+}
+
+case "$1" in
+    start)
+        # 检查是否已在运行
+        if [ -f "$PID_FILE" ]; then
+            pid=$(cat "$PID_FILE" | tr -d '[:space:]')
+            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                exit 0
+            fi
+            rm -f "$PID_FILE"
+        fi
+
+        # 确保运行时目录存在
+        mkdir -p "${PKGVAR_DIR}"
+        mkdir -p /var/run
+
+        # 清理旧的 socket 文件
+        rm -f "${SOCKET_FILE}"
+
+        # 确保依赖已安装
+        if ! ensure_deps; then
+            echo "依赖安装失败，请查看日志: ${LOG_FILE}" > "${TEMP_LOG_FILE}"
+            exit 1
+        fi
+
+        # 启动 gunicorn，使用 manifest 声明的本地服务端口供桌面 iframe 访问。
+        cd "${APP_DIR}"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] 启动 gunicorn，Port ${SERVICE_PORT}" >> "${LOG_FILE}"
+
+        PYTHONPATH="${LIBS_DIR}" nohup python3 -m gunicorn \
+            --bind "127.0.0.1:${SERVICE_PORT}" \
+            --workers 1 \
+            --threads 4 \
+            --timeout 30 \
+            --access-logfile "${LOG_FILE}" \
+            --error-logfile "${LOG_FILE}" \
+            app:app \
+            >> "${LOG_FILE}" 2>&1 &
+
+        echo $! > "${PID_FILE}"
+
+        # 等待 socket 就绪（最多20秒，依赖安装可能需要时间）
+        for i in $(seq 1 20); do
+            if curl -sf "http://127.0.0.1:${SERVICE_PORT}/health" > /dev/null 2>&1; then
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] 服务启动成功" >> "${LOG_FILE}"
+                exit 0
+            fi
+            sleep 1
+        done
+
+        # 检查进程是否还在
+        pid=$(cat "$PID_FILE" | tr -d '[:space:]')
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] 进程运行中但端口未就绪，继续等待" >> "${LOG_FILE}"
+            exit 0
+        fi
+
+        echo "应用启动失败，请查看日志: ${LOG_FILE}" > "${TEMP_LOG_FILE}"
+        rm -f "${PID_FILE}"
+        exit 1
+        ;;
+
+    stop)
+        if [ -f "$PID_FILE" ]; then
+            pid=$(cat "$PID_FILE" | tr -d '[:space:]')
+            if [ -n "$pid" ]; then
+                # 优雅停止主进程，gunicorn 会自动清理 worker
+                kill "$pid" 2>/dev/null
+                # 等待进程退出（最多10秒）
+                for i in $(seq 1 10); do
+                    if ! kill -0 "$pid" 2>/dev/null; then
+                        break
+                    fi
+                    sleep 1
+                done
+                # 强制清理残留
+                kill -9 "$pid" 2>/dev/null
+            fi
+            rm -f "$PID_FILE"
+        fi
+
+        # 额外清理本应用可能残留的 gunicorn 进程
+        pkill -f "gunicorn.*127.0.0.1:${SERVICE_PORT}" 2>/dev/null
+
+        # 清理 socket 文件
+        rm -f "${SOCKET_FILE}"
+
+        exit 0
+        ;;
+
+    status)
+        if [ -f "$PID_FILE" ]; then
+            pid=$(cat "$PID_FILE" | tr -d '[:space:]')
+            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                exit 0
+            fi
+            rm -f "$PID_FILE"
+        fi
+        exit 3
+        ;;
+
+    *)
+        echo "Usage: $0 {start|stop|status}"
+        exit 1
+        ;;
+esac

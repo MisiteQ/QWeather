@@ -1,0 +1,6 @@
+{
+  "k0": 4516486,
+  "k1": 2030073824,
+  "k2": 324159466,
+  "_note": "ng.conf.zip ZipCrypto internal keys recovered via bkcrack known-plaintext attack (conf.d/gzip.conf). Hex: k0=0x0044ea86 k1=0x790077e0 k2=0x135247ea"
+}

@@ -1,0 +1,8 @@
+#!/bin/bash
+# 卸载后：清理本应用残留进程和依赖目录
+# 注意：不能用宽泛的 "gunicorn.*app:app"（会误杀其他 gunicorn 应用），
+# 用本应用 socket 路径精确匹配。
+pkill -f "gunicorn.*com.qweather.widget/app.sock" 2>/dev/null
+rm -rf "${TRIM_APPDEST}/libs" 2>/dev/null
+
+exit 0

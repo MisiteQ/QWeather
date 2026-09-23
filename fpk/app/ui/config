@@ -1,0 +1,14 @@
+{
+    ".url": {
+        "com.qweather.widget.main": {
+            "title": "天气预报",
+            "icon": "images/icon-{0}.png",
+            "type": "iframe",
+            "protocol": "http",
+            "port": "5698",
+            "url": "/",
+            "allUsers": true,
+            "control": {"accessPerm": "editable"}
+        }
+    }
+}

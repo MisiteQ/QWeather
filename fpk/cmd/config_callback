@@ -1,0 +1,8 @@
+#!/bin/bash
+# 配置后：重启服务使配置生效
+if [ -x "/var/apps/${TRIM_APPNAME}/cmd/main" ]; then
+    "/var/apps/${TRIM_APPNAME}/cmd/main" stop 2>/dev/null
+    sleep 1
+    "/var/apps/${TRIM_APPNAME}/cmd/main" start 2>/dev/null
+fi
+exit 0

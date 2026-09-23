@@ -1,0 +1,20 @@
+#!/bin/bash
+# 升级后：重新安装依赖（以防版本变化）
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+APP_DIR="${TRIM_APPDEST:-$(dirname -- "${SCRIPT_DIR}")}"
+LIBS_DIR="${APP_DIR}/libs"
+
+if [ -f "${APP_DIR}/requirements.txt" ]; then
+    mkdir -p "${LIBS_DIR}"
+    python3 -m pip install \
+        --target "${LIBS_DIR}" \
+        --no-cache-dir \
+        --upgrade \
+        -r "${APP_DIR}/requirements.txt" 2>&1
+fi
+
+if [ -x "${APP_DIR}/cmd/main" ]; then
+    "${APP_DIR}/cmd/main" start
+fi
+
+exit 0

@@ -1,0 +1,21 @@
+# Python 编译产物
+__pycache__/
+*.pyc
+*.pyo
+
+# 打包产物
+*.fpk
+
+# 系统文件
+Thumbs.db
+.DS_Store
+
+# IDE / 编辑器
+.trae/
+.vscode/
+.idea/
+
+# 测试报告与临时脚本（含本机凭据，切勿提交）
+_reports/
+_nas.py
+_pw_e2e.py
