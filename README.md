@@ -1,6 +1,6 @@
 # 天气预报 QWeather Widget
 <p>
-  <img alt="Version" src="https://img.shields.io/badge/version-2.2.5-blue">
+  <img alt="Version" src="https://img.shields.io/badge/version-2.2.6-blue">
   <img alt="fnOS" src="https://img.shields.io/badge/fnOS-x86%20%7C%20arm-success">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-orange">
   <img alt="Data" src="https://img.shields.io/badge/data-Open--Meteo-green">
@@ -8,7 +8,7 @@
 
 飞牛 fnOS 桌面天气预报小部件（FPK 原生应用）：直接注入飞牛桌面显示，**无窗口标题栏**，支持实时天气与未来 5 天预报、全球城市搜索切换、桌面自由拖动、卡片透明度调节、调整大小、隐藏 / 恢复。数据来源 [Open-Meteo](https://open-meteo.com/)（免费，**无需 API Key**），小部件前端直连 Open-Meteo，无需经 NAS 网关中转。
 
-- 当前版本：**v2.2.5**
+- 当前版本：**v2.2.6**
 - 作者：**Misite齊**
 - 适用平台：fnOS **x86 + arm**（最低系统版本 1.0.0）
 - 服务端口：**5698**
@@ -62,7 +62,7 @@ https://github.com/MisiteQ/FnDepot
 
 ### 方式二：手动安装 FPK
 
-1. 到 [Releases](https://github.com/MisiteQ/QWeather/releases) 下载 `com.qweather.widget-2.2.5-x86.fpk`
+1. 到 [Releases](https://github.com/MisiteQ/QWeather/releases) 下载 `com.qweather.widget-2.2.6-x86.fpk`
 2. 飞牛 OS → **应用中心** → 左下角 **手动安装** → 选择 fpk 文件
 3. 安装完成后，天气卡片即显示在飞牛桌面上（若未显示，强制刷新桌面 `Ctrl+Shift+R`）
 
@@ -139,6 +139,7 @@ fpk/
 
 | 版本 | 内容 |
 |---|---|
+| v2.2.6 | **字号优化**：日期时间字号 11px → 14px、底部更新时间 10px → 11px，提升可读性 |
 | v2.2.5 | **卡片布局优化**：将「未来预报」区块移至「详情」区块之前，使预报信息更醒目 |
 | v2.2.4 | 维护性更新 |
 | v2.1.0 | **彻底修复遮挡问题**：小组件挂载到飞牛桌面容器内部（z-index:10），原生窗口 / 右键菜单 / 模态框天然覆盖小组件，永远不挡原生控件；默认位置自动避让桌面图标；卡片右键仍可调出飞牛桌面菜单且定位一致；注入机制重构——nginx 配置经加密 ng.conf.zip 同步以兼容系统自愈，widget.js 由 nginx 直接 alias 提供，维护线程仅「期望内容」核对、不写系统 www 目录，消除 v2.0.0 持续写入触发的系统恢复风暴 |

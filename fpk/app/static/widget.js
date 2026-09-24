@@ -183,7 +183,7 @@
         "#qweather-root .qw-location-info{display:flex;align-items:center;gap:6px;flex:1;min-width:0;}",
         "#qweather-root .qw-location-icon{width:18px;height:18px;flex-shrink:0;color:#e74c3c;}",
         "#qweather-root .qw-location-name{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}",
-        "#qweather-root .qw-date-block{display:flex;align-items:center;gap:8px;font-size:11px;opacity:0.72;white-space:nowrap;flex-shrink:0;}",
+        "#qweather-root .qw-date-block{display:flex;align-items:center;gap:8px;font-size:14px;opacity:0.72;white-space:nowrap;flex-shrink:0;}",
         "#qweather-root .qw-date-block span:last-child{font-weight:700;letter-spacing:0.04em;}",
         "#qweather-root .qw-icon-btn{width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,0.05);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#1a1a2e;flex-shrink:0;transition:background 0.2s;margin-left:8px;pointer-events:auto;}",
         "#qweather-root .qw-icon-btn svg{width:16px;height:16px;}",
@@ -211,7 +211,7 @@
         "#qweather-root .qw-forecast-temp{font-size:11px;font-weight:600;}",
         "#qweather-root .qw-forecast-temp .qw-min{opacity:0.5;font-weight:400;}",
 
-        "#qweather-root .qw-update-time{text-align:center;font-size:10px;opacity:0.4;margin-top:6px;}",
+        "#qweather-root .qw-update-time{text-align:center;font-size:11px;opacity:0.4;margin-top:6px;}",
 
         "#qweather-root .qw-resize-handle{position:absolute;right:4px;bottom:4px;width:18px;height:18px;cursor:nwse-resize;pointer-events:auto;z-index:5;border-radius:6px;background:rgba(91,110,225,0.04);}",
         "#qweather-root .qw-resize-handle::after{content:none;display:none;}",
