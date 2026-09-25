@@ -104,6 +104,7 @@
 
     // ===== 配置常量 =====
     var STORAGE_KEY = "qweather_widget_settings";
+    var WEATHER_CACHE_KEY = "qweather_widget_weather_cache";
     var SCHEMA_VERSION = 2;
     var DEFAULT_SETTINGS = {
         schemaV: SCHEMA_VERSION,
@@ -375,6 +376,19 @@
             if (ensureMounted()) {
                 placeWidget();
                 updateCompactMode();
+                // 首次挂载时若未保存尺寸比例，则按当前宿主尺寸计算并持久化，
+                // 以便在不同显示器上按比例缩放适配。
+                if (hostEl && (typeof settings.widthRatio !== "number" ||
+                               typeof settings.heightRatio !== "number")) {
+                    var hr0 = hostEl.getBoundingClientRect();
+                    if (hr0.width && hr0.height) {
+                        settings.widthRatio = clamp(
+                            (settings.width || card.offsetWidth || 340) / hr0.width, 0.15, 0.8);
+                        settings.heightRatio = clamp(
+                            (settings.height || card.offsetHeight || 498) / hr0.height, 0.15, 0.8);
+                        saveSettings();
+                    }
+                }
             }
 
             setupDrag($("#qw-drag-handle"));
@@ -401,20 +415,31 @@
         }, false);
     }
 
+    // 返回当前卡片的实际宽高（优先读取已渲染尺寸，回退到 settings）
+    function getCardSize() {
+        var w = (card && card.offsetWidth) || settings.width || 340;
+        var h = (card && card.offsetHeight) || settings.height || 498;
+        return { w: w, h: h };
+    }
+
     function resolvePositionPx() {
         if (!hostEl) return null;
         var hr = hostEl.getBoundingClientRect();
+        var size = getCardSize();
         var pos = settings.position || {};
+        // 安全边距：保证卡片完整留在宿主内
+        var maxX = Math.max(0, hr.width - size.w);
+        var maxY = Math.max(0, hr.height - size.h);
         if (typeof pos.xRatio === "number" && typeof pos.yRatio === "number") {
             return {
-                x: clamp(pos.xRatio * hr.width, 0, Math.max(0, hr.width - 40)),
-                y: clamp(pos.yRatio * hr.height, 0, Math.max(0, hr.height - 40))
+                x: clamp(pos.xRatio * hr.width, 0, maxX),
+                y: clamp(pos.yRatio * hr.height, 0, maxY)
             };
         }
         if (typeof pos.x === "number" && typeof pos.y === "number") {
             return {
-                x: clamp(pos.x, 0, Math.max(0, hr.width - 40)),
-                y: clamp(pos.y, 0, Math.max(0, hr.height - 40))
+                x: clamp(pos.x, 0, maxX),
+                y: clamp(pos.y, 0, maxY)
             };
         }
         return null;
@@ -449,15 +474,18 @@
     function placeWidget() {
         safe(function () {
             var hr = hostEl.getBoundingClientRect();
-            var cw = (card && card.offsetWidth) || settings.width || 340;
-            var ch = (card && card.offsetHeight) || 498;
+            var size = getCardSize();
+            var cw = size.w;
+            var ch = size.h;
             cw = Math.min(cw, hr.width - 4);
             ch = Math.min(ch, hr.height - 4);
 
             var pos = resolvePositionPx();
             if (settings.position && pos) {
-                var x = clamp(pos.x, 0, Math.max(0, hr.width - 40));
-                var y = clamp(pos.y, 0, Math.max(0, hr.height - 30));
+                var maxX = Math.max(0, hr.width - cw);
+                var maxY = Math.max(0, hr.height - ch);
+                var x = clamp(pos.x, 0, maxX);
+                var y = clamp(pos.y, 0, maxY);
                 root.style.left = x + "px";
                 root.style.top = y + "px";
                 return;
@@ -509,15 +537,32 @@
         safe(function () {
             if (!root || !hostEl) return;
             var hr = hostEl.getBoundingClientRect();
-            if (settings.width && hr.width) {
-                var ratioW = clamp((settings.width || card.offsetWidth) / Math.max(hr.width, 1), 0.15, 0.8);
-                var ratioH = clamp((settings.height || card.offsetHeight) / Math.max(hr.height, 1), 0.15, 0.8);
-                card.style.width = (hr.width * ratioW) + "px";
-                card.style.height = (hr.height * ratioH) + "px";
+
+            // 若保存了尺寸比例，则按比例缩放卡片以适配不同显示器；
+            // 否则保持绝对像素尺寸（旧版/未手动调整过大小的情况）。
+            if (card) {
+                var useRatio = typeof settings.widthRatio === "number" &&
+                               typeof settings.heightRatio === "number";
+                if (useRatio && hr.width && hr.height) {
+                    var rw = clamp(settings.widthRatio, 0.15, 0.8);
+                    var rh = clamp(settings.heightRatio, 0.15, 0.8);
+                    card.style.width = Math.round(hr.width * rw) + "px";
+                    card.style.height = Math.round(hr.height * rh) + "px";
+                } else if (settings.width) {
+                    // 绝对像素尺寸：直接应用，但不超过宿主
+                    card.style.width = Math.min(settings.width, hr.width - 4) + "px";
+                    if (settings.height) {
+                        card.style.height = Math.min(settings.height, hr.height - 4) + "px";
+                    }
+                }
             }
+
+            var size = getCardSize();
+            var maxX = Math.max(0, hr.width - size.w);
+            var maxY = Math.max(0, hr.height - size.h);
             var pos = resolvePositionPx();
-            var x = clamp(pos ? pos.x : root.offsetLeft, 0, Math.max(0, hr.width - 40));
-            var y = clamp(pos ? pos.y : root.offsetTop, 0, Math.max(0, hr.height - 30));
+            var x = clamp(pos ? pos.x : root.offsetLeft, 0, maxX);
+            var y = clamp(pos ? pos.y : root.offsetTop, 0, maxY);
             root.style.left = x + "px";
             root.style.top = y + "px";
             updateCompactMode();
@@ -850,7 +895,7 @@
                 var hasShowBtn = document.getElementById("qweather-show");
                 if (!hasRoot && !hasShowBtn && settings.visible !== false) {
                     buildWidget();
-                    fetchWeather();
+                    loadWeatherWithCache();
                     startAutoRefresh();
                     startWatchdog();
                 }
@@ -888,8 +933,11 @@
             document.addEventListener("mousemove", function (e) {
                 if (!isDragging || !hostEl) return;
                 var hr = hostEl.getBoundingClientRect();
-                var nx = clamp(initLeft + e.clientX - startX, 0, Math.max(0, hr.width - 60));
-                var ny = clamp(initTop + e.clientY - startY, 0, Math.max(0, hr.height - 40));
+                var size = getCardSize();
+                var nx = clamp(initLeft + e.clientX - startX, 0,
+                               Math.max(0, hr.width - size.w));
+                var ny = clamp(initTop + e.clientY - startY, 0,
+                               Math.max(0, hr.height - size.h));
                 root.style.left = nx + "px";
                 root.style.top = ny + "px";
             });
@@ -1016,7 +1064,65 @@
         });
     }
 
-    // ===== 天气数据 =====
+    // ===== 天气数据（带 localStorage 缓存） =====
+    // 缓存策略：
+    //   - 每次成功获取天气后，将数据连同抓取时间戳写入 localStorage。
+    //   - 加载/登录时优先渲染缓存（秒开，不再显示"加载中..."），
+    //     仅当缓存超过 refreshInterval 时才发起新的网络请求更新。
+    //   - 缓存按地点经纬度区分，切换城市后旧缓存不再复用。
+    function saveWeatherCache(data) {
+        try {
+            var loc = settings.location || {};
+            localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify({
+                ts: Date.now(),
+                lat: loc.latitude,
+                lon: loc.longitude,
+                data: data
+            }));
+        } catch (e) {}
+    }
+
+    function loadWeatherCache() {
+        try {
+            var raw = localStorage.getItem(WEATHER_CACHE_KEY);
+            if (!raw) return null;
+            var cached = JSON.parse(raw);
+            if (!cached || !cached.data) return null;
+            return cached;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // 渲染缓存数据；updateTime 传入缓存的抓取时间戳
+    function renderWeather(data, updateTime) {
+        safe(function () {
+            var current = data.current;
+            var daily = data.daily;
+            if (!current || !daily) return;
+
+            var codeInfo = WEATHER_CODES[current.weather_code] ||
+                { desc: "未知", icon: "❓" };
+            $("#qw-weather-icon").textContent = codeInfo.icon;
+            $("#qw-temp-value").textContent = Math.round(current.temperature_2m);
+            $("#qw-weather-desc").textContent = codeInfo.desc;
+
+            $("#qw-feels-like").textContent = Math.round(current.apparent_temperature) + "°";
+            $("#qw-humidity").textContent = current.relative_humidity_2m + "%";
+            $("#qw-wind-speed").textContent = Math.round(current.wind_speed_10m) + " km/h";
+            $("#qw-pressure").textContent = Math.round(current.pressure_msl) + " hPa";
+
+            renderForecast(daily);
+            updateClock();
+
+            var d = updateTime ? new Date(updateTime) : new Date();
+            $("#qw-update-time").textContent = "更新于 " +
+                String(d.getHours()).padStart(2, "0") + ":" +
+                String(d.getMinutes()).padStart(2, "0");
+            updateCompactMode();
+        });
+    }
+
     function fetchWeather() {
         safe(function () {
             if (!settings.location) return;
@@ -1037,39 +1143,45 @@
                         $("#qw-weather-desc").textContent = data.error;
                         return;
                     }
-                    renderWeather(data);
+                    var now = Date.now();
+                    saveWeatherCache(data);
+                    renderWeather(data, now);
                 })
                 .catch(function () {
-                    $("#qw-weather-desc").textContent = "获取天气失败";
+                    // 网络失败时保留已显示的缓存数据，仅提示
+                    var desc = $("#qw-weather-desc");
+                    if (desc && desc.textContent === "加载中...") {
+                        desc.textContent = "获取天气失败";
+                    }
                 });
         });
     }
 
-    function renderWeather(data) {
+    // 加载时优先渲染缓存；缓存过期才后台刷新
+    function loadWeatherWithCache() {
         safe(function () {
-            var current = data.current;
-            var daily = data.daily;
-            if (!current || !daily) return;
+            if (!settings.location) return;
+            var loc = settings.location;
+            var cached = loadWeatherCache();
 
-            var codeInfo = WEATHER_CODES[current.weather_code] ||
-                { desc: "未知", icon: "❓" };
-            $("#qw-weather-icon").textContent = codeInfo.icon;
-            $("#qw-temp-value").textContent = Math.round(current.temperature_2m);
-            $("#qw-weather-desc").textContent = codeInfo.desc;
+            // 缓存地点必须匹配当前地点
+            var cacheMatches = cached &&
+                cached.lat === loc.latitude &&
+                cached.lon === loc.longitude;
 
-            $("#qw-feels-like").textContent = Math.round(current.apparent_temperature) + "°";
-            $("#qw-humidity").textContent = current.relative_humidity_2m + "%";
-            $("#qw-wind-speed").textContent = Math.round(current.wind_speed_10m) + " km/h";
-            $("#qw-pressure").textContent = Math.round(current.pressure_msl) + " hPa";
+            if (cacheMatches) {
+                renderWeather(cached.data, cached.ts);
+                var ageMin = (Date.now() - cached.ts) / 60000;
+                var interval = settings.refreshInterval || 30;
+                if (ageMin >= interval) {
+                    // 缓存已过期，后台拉取最新数据
+                    fetchWeather();
+                }
+                return;
+            }
 
-            renderForecast(daily);
-            updateClock();
-
-            var now = new Date();
-            $("#qw-update-time").textContent = "更新于 " +
-                String(now.getHours()).padStart(2, "0") + ":" +
-                String(now.getMinutes()).padStart(2, "0");
-            updateCompactMode();
+            // 无缓存或地点不匹配，必须拉取
+            fetchWeather();
         });
     }
 
@@ -1122,7 +1234,7 @@
                     return;
                 }
                 buildWidget();
-                fetchWeather();
+                loadWeatherWithCache();
                 startAutoRefresh();
                 startWatchdog();
             };
