@@ -1,6 +1,6 @@
 # 天气预报 QWeather Widget
 <p>
-  <img alt="Version" src="https://img.shields.io/badge/version-2.2.7-blue">
+  <img alt="Version" src="https://img.shields.io/badge/version-2.2.8-blue">
   <img alt="fnOS" src="https://img.shields.io/badge/fnOS-x86%20%7C%20arm-success">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-orange">
   <img alt="Data" src="https://img.shields.io/badge/data-Open--Meteo-green">
@@ -8,7 +8,7 @@
 
 飞牛 fnOS 桌面天气预报小部件（FPK 原生应用）：直接注入飞牛桌面显示，**无窗口标题栏**，支持实时天气与未来 5 天预报、全球城市搜索切换、桌面自由拖动、卡片透明度调节、调整大小、隐藏 / 恢复。数据来源 [Open-Meteo](https://open-meteo.com/)（免费，**无需 API Key**），小部件前端直连 Open-Meteo，无需经 NAS 网关中转。
 
-- 当前版本：**v2.2.7**
+- 当前版本：**v2.2.8**
 - 作者：**Misite齊**
 - 适用平台：fnOS **x86 + arm**（最低系统版本 1.0.0）
 - 服务端口：**5698**
@@ -62,7 +62,7 @@ https://github.com/MisiteQ/FnDepot
 
 ### 方式二：手动安装 FPK
 
-1. 到 [Releases](https://github.com/MisiteQ/QWeather/releases) 下载 `com.qweather.widget-2.2.7-x86.fpk`
+1. 到 [Releases](https://github.com/MisiteQ/QWeather/releases) 下载 `com.qweather.widget-2.2.8-x86.fpk`
 2. 飞牛 OS → **应用中心** → 左下角 **手动安装** → 选择 fpk 文件
 3. 安装完成后，天气卡片即显示在飞牛桌面上（若未显示，强制刷新桌面 `Ctrl+Shift+R`）
 
@@ -91,7 +91,7 @@ python3 build_fp.py
 bash build.sh
 ```
 
-> 双架构发布：分别将 `platform` 设为 `x86` 和 `arm` 各打包一次，产物为 `com.qweather.widget-2.2.7-x86.fpk` 和 `com.qweather.widget-2.2.7-arm.fpk`。
+> 双架构发布：分别将 `platform` 设为 `x86` 和 `arm` 各打包一次，产物为 `com.qweather.widget-2.2.8-x86.fpk` 和 `com.qweather.widget-2.2.8-arm.fpk`。
 
 或直接运行：
 
@@ -126,7 +126,7 @@ fpk/
 ## 🔒 隐私与安全
 
 - 天气数据由浏览器前端直连 [Open-Meteo](https://open-meteo.com/) 公开 API 获取，**不经过 NAS 中转、不上传任何个人信息**
-- 城市搜索同样直连 Open-Meteo Geocoding API
+- 城市搜索为**双源合并**：中国城市（省/市/县三级 3200+，内置坐标库，来源阿里 DataV GeoAtlas）本地秒搜；国际城市直连 Open-Meteo Geocoding API。Open-Meteo 地理编码对中国中小城市覆盖不足，内置库保证国内地名可搜且坐标准确
 - 应用后端仅用于桌面注入维护与备用天气查询，不存储任何用户数据
 - `ng_keys.json` 中的密钥为 fnOS 系统 `ng.conf.zip` 的 ZipCrypto 内部密钥（通过已知明文攻击恢复），仅用于在系统恢复包中持久化本应用的 nginx 配置
 
@@ -134,11 +134,13 @@ fpk/
 
 - 飞牛 fnOS 与 [FnDepot](https://github.com/EWEDLCM/FnDepot)
 - [Open-Meteo](https://open-meteo.com/) 免费天气 API
+- [阿里 DataV GeoAtlas](https://datav.aliyun.com/) 中国行政区划坐标数据
 
 ## 📋 版本历史
 
 | 版本 | 内容 |
 |---|---|
+| v2.2.8 | **城市搜索修复**：新增内置中国行政区划坐标库（省/市/县三级 3200+，来源阿里 DataV），国内城市本地秒搜且坐标准确，解决 Open-Meteo 对中国中小城市搜不到/搜错的问题；国际城市仍走 Open-Meteo，双源合并去重 |
 | v2.2.7 | **跨显示器适配 + 天气缓存**：位置夹取改用卡片实际尺寸，不再伸出屏幕外；卡片尺寸按保存比例缩放，不同显示器自动适配；新增天气数据本地缓存，登录/刷新时秒显上次数据且遵循设置的刷新间隔，不再每次登录都重新拉取 |
 | v2.2.6 | **字号优化**：日期时间字号 11px → 14px、底部更新时间 10px → 11px，提升可读性 |
 | v2.2.5 | **卡片布局优化**：将「未来预报」区块移至「详情」区块之前，使预报信息更醒目 |

@@ -101,6 +101,13 @@
     // ===== API（直连 Open-Meteo，CORS 开放，无需 Key / 无需经 NAS 网关） =====
     var DIRECT_WEATHER = "https://api.open-meteo.com/v1/forecast";
     var DIRECT_GEOCODE = "https://geocoding-api.open-meteo.com/v1/search";
+    // 城市搜索数据源：
+    //   1) 内置中国行政区划坐标库（/qweather-cities.json，省/市/县三级 3200+，
+    //      来源阿里 DataV GeoAtlas，脚本 _gen_cities.py 可再生成）——
+    //      Open-Meteo 地理编码基于 GeoNames，中国中小城市中文覆盖差
+    //      （搜不到/错配国外同名地点），国内城市一律本地检索，秒出且准确；
+    //   2) 国际城市走 Open-Meteo（language=zh），与本地结果合并去重。
+    var CN_CITIES_CACHE_KEY = "qweather_widget_cities_v1";
 
     // ===== 配置常量 =====
     var STORAGE_KEY = "qweather_widget_settings";
@@ -1002,7 +1009,108 @@
         });
     }
 
-    // ===== 地点搜索 =====
+    // ===== 地点搜索（内置中国城市库 + Open-Meteo 双源合并） =====
+    function normPlaceName(s) {
+        return (s || "").toLowerCase().replace(/\s+/g, "");
+    }
+
+    // 加载中国行政区划坐标库：内存 → localStorage → 同源 JSON。
+    // 任何失败都返回 null（搜索自动退化为仅 Open-Meteo）。
+    var CN_CITIES = null;
+    var CN_CITIES_LOADING = null;
+    function loadCnCities() {
+        if (CN_CITIES) return Promise.resolve(CN_CITIES);
+        if (CN_CITIES_LOADING) return CN_CITIES_LOADING;
+        try {
+            var raw = localStorage.getItem(CN_CITIES_CACHE_KEY);
+            if (raw) {
+                CN_CITIES = JSON.parse(raw);
+                if (CN_CITIES && CN_CITIES.length) return Promise.resolve(CN_CITIES);
+                CN_CITIES = null;
+            }
+        } catch (e) {}
+        CN_CITIES_LOADING = fetch("/qweather-cities.json", { credentials: "same-origin" })
+            .then(function (r) { return r.json(); })
+            .then(function (list) {
+                if (!list || !list.length) throw new Error("empty");
+                CN_CITIES = list;
+                try { localStorage.setItem(CN_CITIES_CACHE_KEY, JSON.stringify(list)); } catch (e) {}
+                CN_CITIES_LOADING = null;
+                return CN_CITIES;
+            })
+            .catch(function () {
+                CN_CITIES_LOADING = null;
+                return null;
+            });
+        return CN_CITIES_LOADING;
+    }
+
+    // 本地检索：条目格式 [名称, 省份, 纬度, 经度]；
+    // 名称精确 > 名称前缀 > 名称包含，避免省份匹配淹没结果
+    function searchCnLocal(query) {
+        if (!CN_CITIES) return [];
+        var q = normPlaceName(query);
+        var exact = [], prefix = [], contains = [];
+        for (var i = 0; i < CN_CITIES.length; i++) {
+            var it = CN_CITIES[i];
+            var rec = {
+                name: it[0], admin1: it[1], country: "中国",
+                latitude: it[2], longitude: it[3], local: true
+            };
+            if (normPlaceName(it[0]) === q) exact.push(rec);
+            else if (it[0].indexOf(query) === 0) prefix.push(rec);
+            else if (it[0].indexOf(query) > 0) contains.push(rec);
+        }
+        return exact.concat(prefix, contains);
+    }
+
+    // Open-Meteo 地理编码（国际城市，结果带结构化 admin1/country）
+    function searchOpenMeteo(name) {
+        var url = DIRECT_GEOCODE + "?name=" + encodeURIComponent(name) +
+            "&count=10&language=zh&format=json";
+        return fetch(url, { credentials: "same-origin" })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                return (data.results || []).map(function (item) {
+                    return {
+                        name: item.name,
+                        admin1: item.admin1 || "",
+                        country: item.country || "",
+                        latitude: item.latitude,
+                        longitude: item.longitude,
+                        local: false
+                    };
+                });
+            })
+            .catch(function () { return []; });
+    }
+
+    // 合并去重：同名同国 或 坐标接近（0.1°内）视为同一地点，本地结果优先；
+    // 排序：本地精确 > Open-Meteo 精确 > 本地前缀 > Open-Meteo 前缀 > 包含
+    function mergeSearchResults(localList, omList, query) {
+        var seen = {};
+        var out = [];
+        function dedupePush(item) {
+            var nameKey = item.country + "|" + normPlaceName(item.name);
+            var coordKey = Math.round(item.latitude * 10) + "," +
+                Math.round(item.longitude * 10);
+            if (seen[nameKey] || seen[coordKey]) return;
+            seen[nameKey] = seen[coordKey] = true;
+            out.push(item);
+        }
+        localList.forEach(dedupePush);
+        omList.forEach(dedupePush);
+
+        var q = normPlaceName(query);
+        function rankOf(item) {
+            var n = normPlaceName(item.name);
+            var base = (n === q) ? 0 : (n.indexOf(q) === 0 ? 2 : 4);
+            return base + (item.local ? 0 : 1);
+        }
+        out.sort(function (a, b) { return rankOf(a) - rankOf(b); });
+        return out.slice(0, 10);
+    }
+
     function searchLocation(name) {
         safe(function () {
             name = (name || "").trim();
@@ -1012,12 +1120,11 @@
             resultsContainer.innerHTML = '<div class="qw-result-item" style="color:#999">搜索中...</div>';
             resultsContainer.style.display = "block";
 
-            var url = DIRECT_GEOCODE + "?name=" + encodeURIComponent(name) +
-                "&count=8&language=zh&format=json";
-            fetch(url, { credentials: "same-origin" })
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    renderSearchResults(data.results || []);
+            // 双源并行；两个源内部均已兜底（失败返回空数组），不会整体 reject
+            Promise.all([loadCnCities(), searchOpenMeteo(name)])
+                .then(function (res) {
+                    renderSearchResults(
+                        mergeSearchResults(searchCnLocal(name), res[1] || [], name));
                 })
                 .catch(function () {
                     resultsContainer.innerHTML =

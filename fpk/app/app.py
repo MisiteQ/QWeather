@@ -90,6 +90,7 @@ QW_CONF_ARCNAME = "conf.d/qweather.conf"
 APP_DEST_DIR = os.environ.get(
     "TRIM_APPDEST", "/vol1/@appcenter/com.qweather.widget")
 WIDGET_JS_DIRECT = os.path.join(APP_DEST_DIR, "static", "widget.js")
+CITIES_JSON_DIRECT = os.path.join(APP_DEST_DIR, "static", "cities_cn.json")
 
 # widget.js 由 nginx 直接 alias 提供（不经应用网关）：
 # 登录前网关 token 无效会拒绝 /app/<name>/widget.js，而脚本必须在
@@ -118,7 +119,11 @@ location = /qweather-widget.js {
     default_type application/javascript;
     add_header cache-control no-store;
 }
-""" % (DESKTOP_INDEX, WIDGET_JS_DIRECT)
+location = /qweather-cities.json {
+    alias %s;
+    default_type application/json;
+}
+""" % (DESKTOP_INDEX, WIDGET_JS_DIRECT, CITIES_JSON_DIRECT)
 
 WIDGET_SCRIPT_TAG = '<script src="/qweather-widget.js"></script>'
 
