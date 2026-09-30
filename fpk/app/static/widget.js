@@ -101,9 +101,12 @@
     // ===== API（直连 Open-Meteo，CORS 开放，无需 Key / 无需经 NAS 网关） =====
     var DIRECT_WEATHER = "https://api.open-meteo.com/v1/forecast";
     var DIRECT_GEOCODE = "https://geocoding-api.open-meteo.com/v1/search";
-    // 设置持久化：存 NAS 服务端（/app/com.qweather.widget/api/settings），
-    // 跨浏览器/跨设备共享。localStorage 仅作即时回退与离线缓存。
-    var SETTINGS_API = "/app/com.qweather.widget/api/settings";
+    // 设置持久化：存 NAS 服务端，跨浏览器/跨设备共享。
+    // 走 nginx 直接反代 /qweather-api/ → 127.0.0.1:5698/api/（绕开
+    // fnOS 应用网关，因为 widget.js 注入在桌面页，网关 session 不覆盖
+    // 注入页的 fetch，走 /app/<name>/api/... 会被网关 404）。
+    // localStorage 仅作即时回退与离线缓存。
+    var SETTINGS_API = "/qweather-api/settings";
     // 城市搜索数据源：
     //   1) 内置中国行政区划坐标库（/qweather-cities.json，省/市/县三级 3200+，
     //      来源阿里 DataV GeoAtlas，脚本 _gen_cities.py 可再生成）——
@@ -837,8 +840,7 @@
                 settings.refreshInterval = parseInt($("#qw-rf-select").value, 10);
                 saveSettings();
                 startAutoRefresh();
-                toggleSettings();
-                showToast("设置已保存");
+                showToast("设置已保存，可点击 ✕ 关闭");
             });
             $("#qw-reset-btn").addEventListener("click", function () {
                 settings.position = null;
@@ -1255,9 +1257,8 @@
                     saveSettings();
                     $("#qw-location-name").textContent = item.name;
                     container.style.display = "none";
-                    toggleSettings();
                     fetchWeather();
-                    showToast("已切换到 " + item.name);
+                    showToast("已切换到 " + item.name + "，可点击保存设置");
                 });
                 container.appendChild(div);
             });

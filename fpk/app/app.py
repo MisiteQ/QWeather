@@ -95,6 +95,12 @@ CITIES_JSON_DIRECT = os.path.join(APP_DEST_DIR, "static", "cities_cn.json")
 # 小组件设置持久化文件（存 NAS，跨浏览器/跨设备共享）
 SETTINGS_FILE = os.path.join(APP_DATA_DIR, "settings.json")
 
+# Flask 后端监听端口（与 cmd/main 中 gunicorn --bind 一致，由 manifest
+# service_port 经 TRIM_SERVICE_PORT 传入）。widget.js 走此 nginx 反向代理
+# 直接访问后端 /api/settings，绕开 fnOS 应用网关认证——因为小组件注入
+# 在桌面页（非应用 iframe），网关 session 不覆盖注入页的 fetch。
+SERVICE_PORT = os.environ.get("TRIM_SERVICE_PORT", "5698")
+
 # widget.js 由 nginx 直接 alias 提供（不经应用网关）：
 # 登录前网关 token 无效会拒绝 /app/<name>/widget.js，而脚本必须在
 # SPA 登录跳转前就执行——已执行的 IIFE 不随 <script> 标签被 SPA
@@ -126,7 +132,17 @@ location = /qweather-cities.json {
     alias %s;
     default_type application/json;
 }
-""" % (DESKTOP_INDEX, WIDGET_JS_DIRECT, CITIES_JSON_DIRECT)
+# 设置持久化 API：nginx 直接反代到本地 Flask 后端，绕开 fnOS 应用网关。
+# 原因：widget.js 注入在桌面页（非应用 iframe），网关 session 不覆盖
+# 注入页的 fetch，走 /app/<name>/api/settings 会被网关 404。
+location /qweather-api/ {
+    proxy_pass http://127.0.0.1:%s/api/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_read_timeout 30s;
+}
+""" % (DESKTOP_INDEX, WIDGET_JS_DIRECT, CITIES_JSON_DIRECT, SERVICE_PORT)
 
 WIDGET_SCRIPT_TAG = '<script src="/qweather-widget.js"></script>'
 
