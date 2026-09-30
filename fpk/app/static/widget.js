@@ -101,6 +101,9 @@
     // ===== API（直连 Open-Meteo，CORS 开放，无需 Key / 无需经 NAS 网关） =====
     var DIRECT_WEATHER = "https://api.open-meteo.com/v1/forecast";
     var DIRECT_GEOCODE = "https://geocoding-api.open-meteo.com/v1/search";
+    // 设置持久化：存 NAS 服务端（/app/com.qweather.widget/api/settings），
+    // 跨浏览器/跨设备共享。localStorage 仅作即时回退与离线缓存。
+    var SETTINGS_API = "/app/com.qweather.widget/api/settings";
     // 城市搜索数据源：
     //   1) 内置中国行政区划坐标库（/qweather-cities.json，省/市/县三级 3200+，
     //      来源阿里 DataV GeoAtlas，脚本 _gen_cities.py 可再生成）——
@@ -272,14 +275,19 @@
     }
 
     // ===== 设置读写 =====
+    // 主存储为 NAS 服务端 settings.json（跨浏览器/跨设备共享）。
+    // localStorage 仅作即时回退（服务端未就绪/离线时使用），确保
+    // 页面加载时不会因网络延迟而长时间无设置。
+    var _saveTimer = null;
+    var _serverSettingsLoaded = false;
+
     function loadSettings() {
+        // 即时回退：从 localStorage 读取（可能为空 → 返回默认值）
         try {
             var saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 var parsed = JSON.parse(saved);
                 var s = Object.assign({}, DEFAULT_SETTINGS, parsed);
-                // 旧版坐标迁移：v1 时小组件挂 body、position:fixed，坐标为视口坐标，
-                // 桌面内容区从 x=66 开始，需减去 66
                 if (!parsed.schemaV && s.position) {
                     s.position = { x: s.position.x - 66, y: s.position.y };
                 }
@@ -290,10 +298,56 @@
         return Object.assign({}, DEFAULT_SETTINGS);
     }
 
+    // 从 NAS 服务端加载设置（登录后、挂载前调用）。
+    // 成功 → 用服务端数据覆盖 settings 并重新渲染/定位。
+    function loadSettingsFromServer() {
+        return fetch(SETTINGS_API, { credentials: "same-origin" })
+            .then(function (r) {
+                if (!r.ok) return null;
+                return r.json();
+            })
+            .then(function (data) {
+                if (!data || !Object.keys(data).length) return null;
+                _serverSettingsLoaded = true;
+                // 合并：DEFAULT_SETTINGS ← 服务端数据（服务端为准）
+                var merged = Object.assign(
+                    {}, DEFAULT_SETTINGS, data);
+                merged.schemaV = SCHEMA_VERSION;
+                // 旧版坐标迁移
+                if (!data.schemaV && merged.position) {
+                    merged.position = {
+                        x: merged.position.x - 66, y: merged.position.y
+                    };
+                }
+                settings = merged;
+                // 同步到 localStorage（即时回退缓存）
+                try {
+                    localStorage.setItem(
+                        STORAGE_KEY, JSON.stringify(settings));
+                } catch (e) {}
+                return settings;
+            })
+            .catch(function () { return null; });
+    }
+
     function saveSettings() {
+        // 即时写 localStorage（回退缓存）
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
         } catch (e) {}
+        // 防抖写服务端（避免拖动/调整大小时高频请求）
+        if (_saveTimer) clearTimeout(_saveTimer);
+        _saveTimer = setTimeout(function () {
+            _saveTimer = null;
+            try {
+                fetch(SETTINGS_API, {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(settings)
+                }).catch(function () {});
+            } catch (e) {}
+        }, 400);
     }
 
     function $(sel, ctx) {
@@ -407,6 +461,22 @@
             });
 
             window.addEventListener("resize", onWindowResize);
+        });
+    }
+
+    // 服务端设置到达后，重新应用位置/大小/透明度/城市名
+    function applyServerSettingsRefresh() {
+        safe(function () {
+            if (!root || !card) return;
+            if (settings.width) card.style.width = settings.width + "px";
+            if (settings.height) card.style.height = settings.height + "px";
+            var ln = $("#qw-location-name");
+            if (ln && settings.location) ln.textContent = settings.location.name;
+            applyOpacity();
+            if (ensureMounted()) {
+                placeWidget();
+                updateCompactMode();
+            }
         });
     }
 
@@ -901,10 +971,34 @@
                 var hasRoot = root && document.documentElement.contains(root);
                 var hasShowBtn = document.getElementById("qweather-show");
                 if (!hasRoot && !hasShowBtn && settings.visible !== false) {
-                    buildWidget();
-                    loadWeatherWithCache();
-                    startAutoRefresh();
-                    startWatchdog();
+                    // 首次进入桌面：先从 NAS 服务端拉取设置（跨浏览器/设备同步），
+                    // 成功后用服务端数据重建卡片；失败则用 localStorage 回退即时挂载。
+                    if (!_serverSettingsLoaded) {
+                        loadSettingsFromServer().then(function (srv) {
+                            if (srv) {
+                                // 服务端数据已覆盖 settings，重新应用
+                                if (root) {
+                                    // 已挂载（罕见竞态），只需重新定位/调整大小
+                                    applyServerSettingsRefresh();
+                                } else {
+                                    buildWidget();
+                                    loadWeatherWithCache();
+                                    startAutoRefresh();
+                                    startWatchdog();
+                                }
+                            } else {
+                                buildWidget();
+                                loadWeatherWithCache();
+                                startAutoRefresh();
+                                startWatchdog();
+                            }
+                        });
+                    } else {
+                        buildWidget();
+                        loadWeatherWithCache();
+                        startAutoRefresh();
+                        startWatchdog();
+                    }
                 }
             }
 
@@ -1340,10 +1434,21 @@
                     buildShowButton();
                     return;
                 }
-                buildWidget();
-                loadWeatherWithCache();
-                startAutoRefresh();
-                startWatchdog();
+                // 已登录：尝试从 NAS 服务端拉取设置（跨浏览器/设备同步），
+                // 成功后用服务端数据挂载；失败则用 localStorage 回退即时挂载
+                if (!_serverSettingsLoaded) {
+                    loadSettingsFromServer().then(function (srv) {
+                        buildWidget();
+                        loadWeatherWithCache();
+                        startAutoRefresh();
+                        startWatchdog();
+                    });
+                } else {
+                    buildWidget();
+                    loadWeatherWithCache();
+                    startAutoRefresh();
+                    startWatchdog();
+                }
             };
 
             if (document.readyState === "complete") {

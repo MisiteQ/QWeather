@@ -92,6 +92,9 @@ APP_DEST_DIR = os.environ.get(
 WIDGET_JS_DIRECT = os.path.join(APP_DEST_DIR, "static", "widget.js")
 CITIES_JSON_DIRECT = os.path.join(APP_DEST_DIR, "static", "cities_cn.json")
 
+# 小组件设置持久化文件（存 NAS，跨浏览器/跨设备共享）
+SETTINGS_FILE = os.path.join(APP_DATA_DIR, "settings.json")
+
 # widget.js 由 nginx 直接 alias 提供（不经应用网关）：
 # 登录前网关 token 无效会拒绝 /app/<name>/widget.js，而脚本必须在
 # SPA 登录跳转前就执行——已执行的 IIFE 不随 <script> 标签被 SPA
@@ -713,6 +716,42 @@ def weather():
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+# ===== 小组件设置持久化（存 NAS，跨浏览器/跨设备共享） =====
+@app.route("/api/settings", methods=["GET"])
+def get_settings():
+    try:
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return jsonify(json.load(f))
+    except Exception:
+        pass
+    return jsonify({})
+
+
+@app.route("/api/settings", methods=["POST", "OPTIONS"])
+def save_settings():
+    if request.method == "OPTIONS":
+        return jsonify({"ok": True})
+    try:
+        data = request.get_json(force=True, silent=True)
+        if data is None:
+            data = {}
+        os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+        tmp = SETTINGS_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, SETTINGS_FILE)
+        try:
+            os.chmod(SETTINGS_FILE, 0o644)
+        except Exception:
+            pass
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # ===== 启动即安装 + 维护 =====
